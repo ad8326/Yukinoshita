@@ -1,4 +1,4 @@
-# HokkaidoSnowSaver — ART·1 透明歌词音响模拟屏保
+# Yukinoshita（雪之下）— ART·1 透明歌词音响模拟屏保
 
 在 macOS 上全屏模拟 ART' MASTER Art 1 透明玻璃歌词音响：读取 Apple Music 正在播放的歌曲，
 自动联网抓取 LRC 歌词，按多种动画模式逐句同步显示；闲置时可用待机时钟或频谱律动。
@@ -8,7 +8,7 @@
 
 ## 直接使用
 
-双击 `build/HokkaidoSnowSaver.app`：立即全屏进入，铺满任意宽高比（含 21:9 带鱼屏）。
+双击 `build/Yukinoshita.app`：立即全屏进入，铺满任意宽高比（含 21:9 带鱼屏）。
 
 ### 键盘交互（复刻实体旋钮的用法）
 

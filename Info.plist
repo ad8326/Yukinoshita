@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>HokkaidoSnowSaver</string>
+	<string>Yukinoshita</string>
 	<key>CFBundleDisplayName</key>
-	<string>北海道雪屏保</string>
+	<string>雪之下屏保</string>
 	<key>CFBundleIdentifier</key>
-	<string>local.nick.hokkaido-snow-saver</string>
+	<string>local.nick.yukinoshita</string>
 	<key>CFBundleExecutable</key>
-	<string>HokkaidoSnowSaver</string>
+	<string>Yukinoshita</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

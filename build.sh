@@ -1,9 +1,9 @@
 #!/bin/bash
-# 构建 HokkaidoSnowSaver.app（无需 Xcode 工程，仅依赖 Xcode Command Line Tools）
+# 构建 Yukinoshita.app（无需 Xcode 工程，仅依赖 Xcode Command Line Tools）
 set -euo pipefail
 cd "$(dirname "$0")"
 
-APP_NAME="HokkaidoSnowSaver"
+APP_NAME="Yukinoshita"
 BUILD_DIR="build"
 APP_DIR="$BUILD_DIR/$APP_NAME.app"
 

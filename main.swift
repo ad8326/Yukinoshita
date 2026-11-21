@@ -1174,7 +1174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         displayToken = ProcessInfo.processInfo.beginActivity(
             options: [.idleDisplaySleepDisabled, .userInitiated],
-            reason: "HokkaidoSnowSaver 常亮屏保"
+            reason: "Yukinoshita 常亮屏保"
         )
         startIdleMonitor()
         NSApp.setActivationPolicy(.accessory)
@@ -1333,7 +1333,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if displayToken == nil {
             displayToken = ProcessInfo.processInfo.beginActivity(
                 options: [.idleDisplaySleepDisabled, .userInitiated],
-                reason: "HokkaidoSnowSaver 常亮屏保"
+                reason: "Yukinoshita 常亮屏保"
             )
         }
     }
