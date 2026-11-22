@@ -499,25 +499,28 @@ struct ArtSpeakerView: View {
                 let hour = Calendar.current.component(.hour, from: timeline.date)
                 let nightStandby = !hasMusic && (hour >= 19 || hour < 7)
                 ZStack {
-                    glassPanel(w: w, h: h)
-                    if !hasMusic || modeCtl.mode == .clock {
-                        clockView(w: w, h: h, t: t)
-                    } else if modeCtl.mode == .spectrum {
-                        spectrumView(w: w, h: h, t: t)
-                    } else if hasMusic {
-                        syncedLyrics(w: w, h: h, t: t)
-                    } else {
-                        fallbackLyrics(w: w, h: h, t: t)
+                    backgroundLayer(w: geo.size.width, h: geo.size.height, t: t)
+                        .opacity(nightStandby ? 0.40 : 1)
+
+                    ZStack {
+                        glassPanel(w: w, h: h)
+                        if !hasMusic || modeCtl.mode == .clock {
+                            clockView(w: w, h: h, t: t)
+                        } else if modeCtl.mode == .spectrum {
+                            spectrumView(w: w, h: h, t: t)
+                        } else if hasMusic {
+                            syncedLyrics(w: w, h: h, t: t)
+                        } else {
+                            fallbackLyrics(w: w, h: h, t: t)
+                        }
+                        hardware(w: w, h: h, t: t)
                     }
-                    hardware(w: w, h: h, t: t)
+                    .frame(width: w, height: h)
+                    .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
+                    .opacity(nightStandby ? 0.15 : 1)
                 }
-                .frame(width: w, height: h)
-                .position(x: geo.size.width * 0.5, y: geo.size.height * 0.5)
                 .frame(width: geo.size.width, height: geo.size.height)
-                // 背景用 background 附加，铺满整屏且完全不参与布局
-                .background(backgroundLayer(w: geo.size.width, h: geo.size.height, t: t))
-                // 夜间待机：内容与背景整体压到 15% 微光（墨水屏效果），昼夜切换平滑过渡
-                .opacity(nightStandby ? 0.15 : 1)
+                // 夜间待机时保留背景微光，只将歌词面板压暗
                 .animation(.easeInOut(duration: 3.0), value: nightStandby)
                 .clipped()
             }
@@ -636,9 +639,9 @@ struct ArtSpeakerView: View {
         let b = PALETTE[(paletteIndex + 2) % PALETTE.count]
         let c = PALETTE[(paletteIndex + 4) % PALETTE.count]
         return ZStack {
-            glowBlob(a, cx: 0.50 + 0.18 * sin(t / 7.0), cy: 0.40 + 0.10 * cos(t / 9.0), r: 0.46, o: 0.22, w: w, h: h)
-            glowBlob(b, cx: 0.42 + 0.20 * cos(t / 8.0), cy: 0.58 + 0.13 * sin(t / 6.5), r: 0.40, o: 0.17, w: w, h: h)
-            glowBlob(c, cx: 0.58 + 0.14 * sin(t / 10.0), cy: 0.34 + 0.08 * sin(t / 7.5), r: 0.32, o: 0.11, w: w, h: h)
+            glowBlob(a, cx: 0.50 + 0.18 * sin(t / 7.0), cy: 0.40 + 0.10 * cos(t / 9.0), r: 0.46, o: 0.32, w: w, h: h)
+            glowBlob(b, cx: 0.42 + 0.20 * cos(t / 8.0), cy: 0.58 + 0.13 * sin(t / 6.5), r: 0.40, o: 0.25, w: w, h: h)
+            glowBlob(c, cx: 0.58 + 0.14 * sin(t / 10.0), cy: 0.34 + 0.08 * sin(t / 7.5), r: 0.32, o: 0.18, w: w, h: h)
         }
         .clipped()
     }
