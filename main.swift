@@ -129,8 +129,12 @@ final class NowPlayingWatcher: ObservableObject {
         guard title != nil else { return }
         title = nil
         artist = nil
+        elapsed = 0
+        duration = 0
         rate = 0
         artwork = nil
+        lastPoll = Date()
+        lastLoggedTitle = ""
         debugLog("播放停止，清空状态进入待机")
     }
 
@@ -150,7 +154,15 @@ final class NowPlayingWatcher: ObservableObject {
     private func readFileFallback() {
         guard let data = try? Data(contentsOf: fallbackFile),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let ts = obj["ts"] as? Double, Date().timeIntervalSince1970 - ts < 3.0 else { return }
+              let ts = obj["ts"] as? Double else {
+            clear()
+            return
+        }
+        let age = Date().timeIntervalSince1970 - ts
+        guard age >= 0, age < 3.0 else {
+            clear()
+            return
+        }
         let t = obj["title"] as? String ?? ""
         if t.isEmpty {
             // 播放已停止（助手写入空标记）：清空状态，让视图进入待机时钟
@@ -192,8 +204,16 @@ enum LyricsFetcher {
         let cleanTitle = clean(title)
         let cleanArtist = artist.map { clean($0) }
         let query = ((cleanArtist ?? "") + " " + cleanTitle).trimmingCharacters(in: .whitespaces)
-        guard let enc = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://music.163.com/api/search/get/web?s=\(enc)&type=1&limit=8") else {
+        guard var components = URLComponents(string: "https://music.163.com/api/search/get/web") else {
+            completion(nil)
+            return
+        }
+        components.queryItems = [
+            URLQueryItem(name: "s", value: query),
+            URLQueryItem(name: "type", value: "1"),
+            URLQueryItem(name: "limit", value: "8")
+        ]
+        guard let url = components.url else {
             completion(nil)
             return
         }
@@ -217,7 +237,6 @@ enum LyricsFetcher {
                     break
                 }
             }
-            if songID == nil { songID = (songs.first?["id"] as? Double) }
             guard let id = songID,
                   let lurl = URL(string: "https://music.163.com/api/song/lyric?id=\(Int(id))&lv=1&kv=1&tv=-1") else {
                 completion(nil)
@@ -248,8 +267,8 @@ enum LyricsFetcher {
 enum LyricsStore {
     /// 在 ~/Music/Lyrics 与 App Resources/Lyrics 里按 "歌名.lrc" / "歌手 - 歌名.lrc" 找歌词
     static func load(title: String, artist: String?) -> [LyricLine]? {
-        let candidates = [title + ".lrc"] +
-            (artist.map { [$0 + " - " + title + ".lrc", title + " - " + $0 + ".lrc"] } ?? [])
+        let candidates = (artist.map { [$0 + " - " + title + ".lrc", title + " - " + $0 + ".lrc"] } ?? []) +
+            [title + ".lrc"]
         var dirs: [URL] = []
         if let lib = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first {
             dirs.append(lib.appendingPathComponent("Music/Lyrics"))
@@ -257,8 +276,8 @@ enum LyricsStore {
         if let res = Bundle.main.resourceURL {
             dirs.append(res.appendingPathComponent("Lyrics"))
         }
-        for dir in dirs {
-            for name in candidates {
+        for name in candidates {
+            for dir in dirs {
                 let url = dir.appendingPathComponent(name)
                 if let content = try? String(contentsOf: url, encoding: .utf8),
                    let lines = parse(content), !lines.isEmpty {
@@ -300,9 +319,18 @@ enum LyricsStore {
     }
 
     static func currentLineIndex(_ lines: [LyricLine], at t: Double) -> Int {
-        var idx = -1
-        for (i, l) in lines.enumerated() where l.time <= t + 0.05 { idx = i }
-        return idx
+        let target = t + 0.05
+        var lower = 0
+        var upper = lines.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if lines[middle].time <= target {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        return lower - 1
     }
 }
 
@@ -511,6 +539,13 @@ struct ArtSpeakerView: View {
         !(watcher.title ?? "").isEmpty
     }
 
+    private var paletteIndex: Int {
+        guard hasMusic, let lines = loadedLyrics, !lines.isEmpty else {
+            return fallbackIndex % PALETTE.count
+        }
+        return max(LyricsStore.currentLineIndex(lines, at: watcher.displayElapsed), 0) % PALETTE.count
+    }
+
     // 照片背景源目录：用户自定义照片背景（Art 1 的「自定义照片背景」）
     private func loadPhotos() {
         let dir = FileManager.default.homeDirectoryForCurrentUser
@@ -566,22 +601,28 @@ struct ArtSpeakerView: View {
     private func backgroundLayer(w: CGFloat, h: CGFloat, t: Double) -> some View {
         ZStack {
             Color.black
-            switch bgCtl.kind {
-            case .art:      artBackground(w: w, h: h, t: t)
-            case .meditation: meditationBackground(w: w, h: h, t: t)
-            case .pure:     pureBackground(w: w, h: h, t: t)
-            case .photo:    photoBackground(w: w, h: h, t: t)
-            case .album:    albumBackground(w: w, h: h, t: t)
-            case .staticBg: staticBackground(w: w, h: h)
+            Group {
+                switch bgCtl.kind {
+                case .art:      artBackground(w: w, h: h, t: t)
+                case .meditation: meditationBackground(w: w, h: h, t: t)
+                case .pure:     pureBackground(w: w, h: h, t: t)
+                case .photo:    photoBackground(w: w, h: h, t: t)
+                case .album:    albumBackground(w: w, h: h, t: t)
+                case .staticBg: staticBackground(w: w, h: h)
+                }
             }
+            .id(bgCtl.kind)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: 1.0), value: bgCtl.kind)
+            .animation(.easeInOut(duration: 1.4), value: paletteIndex)
         }
     }
 
     // 艺术背景：2-3 团情绪色光斑缓慢流动变形（Art 1「艺术歌词背景」）
     private func artBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let a = PALETTE[fallbackIndex % PALETTE.count]
-        let b = PALETTE[(fallbackIndex + 2) % PALETTE.count]
-        let c = PALETTE[(fallbackIndex + 4) % PALETTE.count]
+        let a = PALETTE[paletteIndex]
+        let b = PALETTE[(paletteIndex + 2) % PALETTE.count]
+        let c = PALETTE[(paletteIndex + 4) % PALETTE.count]
         return ZStack {
             glowBlob(a, cx: 0.50 + 0.18 * sin(t / 7.0), cy: 0.40 + 0.10 * cos(t / 9.0), r: 0.46, o: 0.22, w: w, h: h)
             glowBlob(b, cx: 0.42 + 0.20 * cos(t / 8.0), cy: 0.58 + 0.13 * sin(t / 6.5), r: 0.40, o: 0.17, w: w, h: h)
@@ -600,8 +641,8 @@ struct ArtSpeakerView: View {
 
     // 冥想背景：两道极光色带极缓摆动 + 呼吸明暗（Art 1「冥想歌词背景」）
     private func meditationBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let a = PALETTE[fallbackIndex % PALETTE.count]
-        let b = PALETTE[(fallbackIndex + 1) % PALETTE.count]
+        let a = PALETTE[paletteIndex]
+        let b = PALETTE[(paletteIndex + 1) % PALETTE.count]
         return ZStack {
             auroraRibbon(a, angle: .degrees(-12 + 4 * sin(t / 11.0)),
                          y: h * (0.38 + 0.04 * sin(t / 13.0)),
@@ -626,7 +667,7 @@ struct ArtSpeakerView: View {
 
     // 纯享背景：原黑底呼吸光晕 + 缓慢上浮微尘（Art 1「纯享音乐背景」）
     private func pureBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let accent = PALETTE[fallbackIndex % PALETTE.count]
+        let accent = PALETTE[paletteIndex]
         return ZStack {
             RadialGradient(
                 colors: [accent.opacity(0.10 + 0.04 * sin(t / 5.0)), .clear],
@@ -661,19 +702,19 @@ struct ArtSpeakerView: View {
                 let i = Int(cycle) % photos.count
                 let j = (i + 1) % photos.count
                 let phase = cycle - floor(cycle)
+                let blend = min(max((phase - 0.94) / 0.06, 0), 1)
                 ZStack {
                     photoSlide(photos[i], w: w, h: h,
                                scale: 1.04 + 0.07 * phase,
-                               opacity: phase > 0.94 ? 0.32 * (1 - (phase - 0.94) / 0.06) : 0.32)
-                    if phase > 0.94 {
+                               opacity: photos.count > 1 ? 1 - blend : 1)
+                    if photos.count > 1 && blend > 0 {
                         photoSlide(photos[j], w: w, h: h,
-                                   scale: 1.04 + 0.07 * (phase - 1),
-                                   opacity: 0.32 * (phase - 0.94) / 0.06)
+                                   scale: 1.04 + 0.07 * blend,
+                                   opacity: blend)
                     }
                 }
                 .clipped()
-                // 深色压层保证歌词可读
-                Color.black.opacity(0.45)
+                .overlay(Color.black.opacity(0.58))
             }
         }
     }
@@ -734,22 +775,31 @@ struct ArtSpeakerView: View {
         )
     }
 
-    // 玻璃面板：模拟透明屏的高透质感
+    // 透明玻璃屏：保留内容与背景的通透感，以窄边框和反光勾勒屏体
     private func glassPanel(w: CGFloat, h: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 26)
-                .fill(Color.white.opacity(0.05))
-            RoundedRectangle(cornerRadius: 26)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.black.opacity(0.10))
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [.white.opacity(0.10), .white.opacity(0.02)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
+                        colors: [.white.opacity(0.055), .clear, .black.opacity(0.10)],
+                        startPoint: .top, endPoint: .bottom
                     )
                 )
-            RoundedRectangle(cornerRadius: 26)
-                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [.white.opacity(0.36), .white.opacity(0.10), .white.opacity(0.20)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            RoundedRectangle(cornerRadius: 27, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.055), lineWidth: 1)
+                .padding(3)
         }
-        .shadow(color: .black.opacity(0.4), radius: 30)
+        .shadow(color: .black.opacity(0.32), radius: 24)
     }
 
     // 歌词来源：本地/已抓取的 LRC 按当前模式渲染，否则显示歌名卡片或获取中
@@ -757,7 +807,7 @@ struct ArtSpeakerView: View {
         Group {
             if let lines = loadedLyrics, !lines.isEmpty {
                 let idx = max(LyricsStore.currentLineIndex(lines, at: watcher.displayElapsed), 0)
-                let accent = PALETTE[idx % PALETTE.count]   // 情绪变色：随歌词行轮换色相
+                let accent = PALETTE[paletteIndex]   // 情绪变色：歌词和背景同步换色
                 switch modeCtl.mode {
                 case .floating: floatingLyrics(lines, idx: idx, w: w, h: h, t: t, accent: accent)
                 case .karaoke:  karaokeLyrics(lines, idx: idx, w: w, h: h, t: t, accent: accent)
@@ -768,7 +818,7 @@ struct ArtSpeakerView: View {
                 default:        floatingLyrics(lines, idx: idx, w: w, h: h, t: t, accent: accent)
                 }
             } else {
-                noLyricsCard(w: w, h: h, accent: PALETTE[fallbackIndex % PALETTE.count])
+                noLyricsCard(w: w, h: h, accent: PALETTE[paletteIndex])
             }
         }
     }
@@ -1012,7 +1062,7 @@ struct ArtSpeakerView: View {
 
     // MARK: 模式 7 待机时钟（极致雅黑风：细体大数字 + 日期）
     private func clockView(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let accent = PALETTE[fallbackIndex % PALETTE.count]
+        let accent = PALETTE[paletteIndex]
         let now = Date()
         let cal = Calendar.current
         let timeStr = cal.component(.hour, from: now) >= 10
@@ -1037,7 +1087,7 @@ struct ArtSpeakerView: View {
 
     // MARK: 模式 8 频谱律动：伪频谱条 + 当前句小字（无 LRC 也有效）
     private func spectrumView(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let accent = PALETTE[fallbackIndex % PALETTE.count]
+        let accent = PALETTE[paletteIndex]
         let bars = 36
         let beat = watcher.rate > 0 ? watcher.displayElapsed : t
         return VStack(spacing: h * 0.06) {
@@ -1116,44 +1166,63 @@ struct ArtSpeakerView: View {
             .animation(.easeInOut(duration: 1.6), value: fallbackIndex)
     }
 
-    // 硬件细节：旋钮 + 品牌字 + 当前模式指示
+    // 设备状态栏：品牌标识与当前播放状态固定在玻璃屏边缘
     private func hardware(w: CGFloat, h: CGFloat, t: Double) -> some View {
-        let accent = PALETTE[fallbackIndex % PALETTE.count]
         let sinceSwitch = Date().timeIntervalSince(modeCtl.lastSwitch)
         let modeOpacity = sinceSwitch < 2.5 ? 0.85 : 0.28   // 切换后短暂高亮
         let sinceBgSwitch = Date().timeIntervalSince(bgCtl.lastSwitch)
         let bgOpacity = sinceBgSwitch < 2.5 ? 0.85 : 0.24
-        return ZStack {
-            VStack(spacing: 10) {
-                Circle()
-                    .fill(Color.white.opacity(0.14))
-                    .frame(width: 22, height: 22)
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 1))
-                    .overlay(Circle().fill(accent.opacity(0.5)).frame(width: 5, height: 5))
-                HStack(spacing: 10) {
-                    Text("ART·1")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.30))
-                        .tracking(4)
-                    Text("\(modeCtl.mode.rawValue + 1) · \(modeCtl.mode.name)")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(modeOpacity))
-                        .shadow(color: accent.opacity(Double(modeOpacity) * 0.6), radius: 6)
-                    // 背景指示：切换后短暂高亮
-                    Text("◦ \(bgCtl.kind.name)背景")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(bgOpacity))
+        return VStack(spacing: 0) {
+            HStack(alignment: .center) {
+                Text("ART MASTER")
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(5)
+                    .foregroundColor(.white.opacity(0.68))
+                Spacer()
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(hasMusic ? Color(red: 0.45, green: 0.88, blue: 0.76) : .white.opacity(0.35))
+                        .frame(width: 5, height: 5)
+                    Text(hasMusic ? "NOW PLAYING" : "STANDBY")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(1.6)
+                        .foregroundColor(.white.opacity(0.42))
                 }
             }
-            .frame(maxWidth: .infinity)
-            .offset(y: h * 0.38)
-            HStack(spacing: 6) {
-                ForEach(0..<5, id: \.self) { _ in
-                    Circle().fill(Color.white.opacity(0.12)).frame(width: 4, height: 4)
+            .padding(.top, h * 0.035)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.10))
+                .frame(height: 1)
+                .padding(.top, h * 0.018)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 12) {
+                Text("ART·1")
+                    .font(.system(size: 9, weight: .medium))
+                    .tracking(3)
+                    .foregroundColor(.white.opacity(0.28))
+                Text("\(modeCtl.mode.rawValue + 1) · \(modeCtl.mode.name)")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(modeOpacity))
+                Text("·")
+                    .foregroundColor(.white.opacity(0.22))
+                Text("\(bgCtl.kind.name)背景")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.white.opacity(bgOpacity))
+                Spacer(minLength: 0)
+                HStack(spacing: 5) {
+                    ForEach(0..<5, id: \.self) { _ in
+                        Capsule()
+                            .fill(Color.white.opacity(0.20))
+                            .frame(width: 12, height: 2)
+                    }
                 }
             }
-            .offset(x: w * 0.40)
+            .padding(.bottom, h * 0.035)
         }
+        .padding(.horizontal, w * 0.045)
         .allowsHitTesting(false)
     }
 }
@@ -1253,6 +1322,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     return nil
                 }
             }
+            NSApp.terminate(nil)
+            return nil
+        }
+        NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]) { _ in
             NSApp.terminate(nil)
             return nil
         }
