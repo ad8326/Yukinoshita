@@ -416,8 +416,8 @@ final class ModeController: ObservableObject {
     }
 }
 
-// MARK: - 背景层（复刻 Art 1 的背景菜单：艺术/冥想/纯享/照片/专辑/静态）
-// 官方 APP「背景」页共 6 种，背景为低透明度动态氛围，衬在歌词后面（透明屏特性：不抢歌词）
+// MARK: - 背景层（艺术/冥想/纯享/照片/专辑/静态/自然动态）
+// 背景为低透明度动态氛围，衬在歌词后面（透明屏特性：不抢歌词）
 
 enum BackgroundKind: Int, CaseIterable, Identifiable {
     case art      = 0  // 艺术：流动的抽象光斑，情绪色相缓慢漂移
@@ -426,6 +426,10 @@ enum BackgroundKind: Int, CaseIterable, Identifiable {
     case photo    = 3  // 照片：~/Pictures/ArtBackgrounds 轮播 + 缓慢推近
     case album    = 4  // 专辑：实时专辑封面重度模糊衬底（助手抓取）
     case staticBg = 5  // 静态：固定深色渐变，无动画
+    case meadow   = 6  // 草原：微风吹动草叶与萤火
+    case ocean    = 7  // 海面：层叠潮汐与流动波光
+    case snow     = 8  // 冬夜：远山与缓缓飘落的雪
+    case rain     = 9  // 雨幕：城市剪影与斜落雨丝
 
     var id: Int { rawValue }
 
@@ -437,6 +441,10 @@ enum BackgroundKind: Int, CaseIterable, Identifiable {
         case .photo:    return "照片"
         case .album:    return "专辑"
         case .staticBg: return "静态"
+        case .meadow:   return "草原微风"
+        case .ocean:    return "潮汐海浪"
+        case .snow:     return "冬夜飘雪"
+        case .rain:     return "雨幕"
         }
     }
 }
@@ -597,7 +605,7 @@ struct ArtSpeakerView: View {
         }
     }
 
-    // MARK: 背景层分发（复刻 Art 1 背景菜单的 6 种）
+    // MARK: 背景层分发
     private func backgroundLayer(w: CGFloat, h: CGFloat, t: Double) -> some View {
         ZStack {
             Color.black
@@ -609,6 +617,10 @@ struct ArtSpeakerView: View {
                 case .photo:    photoBackground(w: w, h: h, t: t)
                 case .album:    albumBackground(w: w, h: h, t: t)
                 case .staticBg: staticBackground(w: w, h: h)
+                case .meadow:   meadowBackground(w: w, h: h, t: t)
+                case .ocean:    oceanBackground(w: w, h: h, t: t)
+                case .snow:     snowBackground(w: w, h: h, t: t)
+                case .rain:     rainBackground(w: w, h: h, t: t)
                 }
             }
             .id(bgCtl.kind)
@@ -688,6 +700,256 @@ struct ArtSpeakerView: View {
             }
             .clipped()
         }
+    }
+
+    // 草原微风：层叠草坡、随风摆动的草叶与微光萤火
+    private func meadowBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.025, green: 0.075, blue: 0.095),
+                        Color(red: 0.045, green: 0.14, blue: 0.12),
+                        Color(red: 0.025, green: 0.07, blue: 0.065)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: size.width, y: size.height)
+                )
+            )
+
+            var hill = Path()
+            hill.move(to: CGPoint(x: 0, y: size.height * 0.70))
+            hill.addCurve(
+                to: CGPoint(x: size.width, y: size.height * 0.67),
+                control1: CGPoint(x: size.width * 0.30, y: size.height * 0.55),
+                control2: CGPoint(x: size.width * 0.68, y: size.height * 0.82)
+            )
+            hill.addLine(to: CGPoint(x: size.width, y: size.height))
+            hill.addLine(to: CGPoint(x: 0, y: size.height))
+            hill.closeSubpath()
+            context.fill(
+                hill,
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.07, green: 0.22, blue: 0.15).opacity(0.72),
+                        Color(red: 0.025, green: 0.09, blue: 0.075).opacity(0.92)
+                    ]),
+                    startPoint: CGPoint(x: 0, y: size.height * 0.58),
+                    endPoint: CGPoint(x: 0, y: size.height)
+                )
+            )
+
+            for i in 0..<110 {
+                let seed = Double(i)
+                let x = Double(i) / 109.0 * Double(size.width)
+                let baseY = Double(size.height) * (0.73 + 0.13 * (0.5 + 0.5 * sin(seed * 1.71)))
+                let bladeHeight = Double(size.height) * (0.035 + 0.09 * (0.5 + 0.5 * sin(seed * 2.37)))
+                let wind = sin(t * 0.8 + x / Double(size.width) * 5.0 + seed * 0.18)
+                let sway = wind * Double(size.width) * 0.018
+                var blade = Path()
+                blade.move(to: CGPoint(x: CGFloat(x), y: CGFloat(baseY)))
+                blade.addQuadCurve(
+                    to: CGPoint(x: CGFloat(x + sway), y: CGFloat(baseY - bladeHeight)),
+                    control: CGPoint(x: CGFloat(x + sway * 0.38), y: CGFloat(baseY - bladeHeight * 0.54))
+                )
+                let green = 0.22 + 0.18 * (0.5 + 0.5 * sin(seed * 0.8))
+                context.stroke(
+                    blade,
+                    with: .color(Color(red: 0.16, green: green, blue: 0.18).opacity(0.48)),
+                    lineWidth: 0.8 + CGFloat(seed.truncatingRemainder(dividingBy: 2.0)) * 0.55
+                )
+            }
+
+            for i in 0..<12 {
+                let seed = Double(i)
+                let x = (0.12 + 0.76 * (0.5 + 0.5 * sin(seed * 8.3))) * Double(size.width)
+                let y = (0.52 + 0.28 * (0.5 + 0.5 * cos(seed * 4.7))) * Double(size.height)
+                let pulse = 0.3 + 0.7 * (0.5 + 0.5 * sin(t * 1.8 + seed))
+                let radius = 1.2 + pulse * 1.6
+                context.fill(
+                    Path(ellipseIn: CGRect(x: CGFloat(x - radius), y: CGFloat(y - radius),
+                                           width: CGFloat(radius * 2), height: CGFloat(radius * 2))),
+                    with: .color(Color(red: 0.78, green: 0.85, blue: 0.48).opacity(0.48 * pulse))
+                )
+            }
+        }
+        .frame(width: w, height: h)
+    }
+
+    // 潮汐海浪：多层缓慢起伏的海面与漂移波光
+    private func oceanBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.015, green: 0.055, blue: 0.12),
+                        Color(red: 0.015, green: 0.12, blue: 0.18),
+                        Color(red: 0.025, green: 0.07, blue: 0.12)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: 0, y: size.height)
+                )
+            )
+
+            for layer in 0..<5 {
+                let depth = Double(layer)
+                let baseline = Double(size.height) * (0.53 + depth * 0.095)
+                let amplitude = Double(size.height) * (0.012 + depth * 0.004)
+                let phase = depth * 1.27
+                var crest = Path()
+                for step in 0...100 {
+                    let x = Double(size.width) * Double(step) / 100.0
+                    let y = baseline
+                        + sin(x / Double(size.width) * 9.0 + t * (0.42 + depth * 0.035) + phase) * amplitude
+                        + sin(x / Double(size.width) * 17.0 - t * 0.24 + phase) * amplitude * 0.32
+                    let point = CGPoint(x: CGFloat(x), y: CGFloat(y))
+                    if step == 0 {
+                        crest.move(to: point)
+                    } else {
+                        crest.addLine(to: point)
+                    }
+                }
+
+                var water = crest
+                water.addLine(to: CGPoint(x: size.width, y: size.height))
+                water.addLine(to: CGPoint(x: 0, y: size.height))
+                water.closeSubpath()
+                let color = Color(red: 0.035 + depth * 0.008,
+                                  green: 0.22 + depth * 0.035,
+                                  blue: 0.29 + depth * 0.025)
+                context.fill(
+                    water,
+                    with: .linearGradient(
+                        Gradient(colors: [color.opacity(0.12), color.opacity(0.52)]),
+                        startPoint: CGPoint(x: 0, y: baseline),
+                        endPoint: CGPoint(x: 0, y: size.height)
+                    )
+                )
+                context.stroke(crest, with: .color(color.opacity(0.22)), lineWidth: 1.2)
+            }
+
+            for i in 0..<24 {
+                let seed = Double(i)
+                let x = (seed * 0.618 + t * (0.008 + seed * 0.00015)).truncatingRemainder(dividingBy: 1.0)
+                    * Double(size.width)
+                let y = (0.58 + 0.36 * (0.5 + 0.5 * sin(seed * 4.8 + t * 0.34))) * Double(size.height)
+                let shimmer = 0.15 + 0.25 * (0.5 + 0.5 * sin(t * 1.4 + seed))
+                context.fill(
+                    Path(ellipseIn: CGRect(x: CGFloat(x), y: CGFloat(y),
+                                           width: CGFloat(2.0 + seed.truncatingRemainder(dividingBy: 2.0)),
+                                           height: 1.2)),
+                    with: .color(Color(red: 0.47, green: 0.79, blue: 0.76).opacity(shimmer))
+                )
+            }
+        }
+        .frame(width: w, height: h)
+    }
+
+    // 冬夜飘雪：深色远山衬底与缓慢飘落的雪粒
+    private func snowBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.035, green: 0.055, blue: 0.13),
+                        Color(red: 0.075, green: 0.10, blue: 0.19),
+                        Color(red: 0.035, green: 0.055, blue: 0.12)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: size.width, y: size.height)
+                )
+            )
+
+            var farMountain = Path()
+            farMountain.move(to: CGPoint(x: 0, y: size.height * 0.72))
+            farMountain.addLine(to: CGPoint(x: size.width * 0.23, y: size.height * 0.34))
+            farMountain.addLine(to: CGPoint(x: size.width * 0.43, y: size.height * 0.69))
+            farMountain.addLine(to: CGPoint(x: size.width * 0.67, y: size.height * 0.39))
+            farMountain.addLine(to: CGPoint(x: size.width, y: size.height * 0.73))
+            farMountain.addLine(to: CGPoint(x: size.width, y: size.height))
+            farMountain.addLine(to: CGPoint(x: 0, y: size.height))
+            farMountain.closeSubpath()
+            context.fill(farMountain, with: .color(Color(red: 0.10, green: 0.13, blue: 0.24).opacity(0.72)))
+
+            var nearMountain = Path()
+            nearMountain.move(to: CGPoint(x: 0, y: size.height * 0.83))
+            nearMountain.addLine(to: CGPoint(x: size.width * 0.32, y: size.height * 0.58))
+            nearMountain.addLine(to: CGPoint(x: size.width * 0.57, y: size.height * 0.82))
+            nearMountain.addLine(to: CGPoint(x: size.width * 0.82, y: size.height * 0.56))
+            nearMountain.addLine(to: CGPoint(x: size.width, y: size.height * 0.78))
+            nearMountain.addLine(to: CGPoint(x: size.width, y: size.height))
+            nearMountain.addLine(to: CGPoint(x: 0, y: size.height))
+            nearMountain.closeSubpath()
+            context.fill(nearMountain, with: .color(Color(red: 0.065, green: 0.095, blue: 0.17).opacity(0.9)))
+
+            for i in 0..<72 {
+                let seed = Double(i)
+                let speed = 0.018 + seed.truncatingRemainder(dividingBy: 6.0) * 0.004
+                let vertical = (t * speed + seed * 0.371).truncatingRemainder(dividingBy: 1.0)
+                let horizontal = 0.5 + 0.48 * sin(seed * 12.9898 + t * 0.11 + vertical * 2.0)
+                let x = horizontal * Double(size.width)
+                let y = vertical * Double(size.height)
+                let radius = 0.8 + seed.truncatingRemainder(dividingBy: 2.3)
+                let opacity = 0.28 + 0.42 * (0.5 + 0.5 * sin(seed * 2.1 + t))
+                context.fill(
+                    Path(ellipseIn: CGRect(x: CGFloat(x), y: CGFloat(y),
+                                           width: CGFloat(radius * 2), height: CGFloat(radius * 2))),
+                    with: .color(Color.white.opacity(opacity))
+                )
+            }
+        }
+        .frame(width: w, height: h)
+    }
+
+    // 雨幕：低饱和城市剪影与持续落下的细雨
+    private func rainBackground(w: CGFloat, h: CGFloat, t: Double) -> some View {
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            context.fill(
+                Path(CGRect(origin: .zero, size: size)),
+                with: .linearGradient(
+                    Gradient(colors: [
+                        Color(red: 0.035, green: 0.055, blue: 0.09),
+                        Color(red: 0.09, green: 0.12, blue: 0.17),
+                        Color(red: 0.025, green: 0.045, blue: 0.075)
+                    ]),
+                    startPoint: .zero,
+                    endPoint: CGPoint(x: 0, y: size.height)
+                )
+            )
+
+            for i in 0..<12 {
+                let seed = Double(i)
+                let buildingWidth = Double(size.width) * (0.045 + 0.025 * (0.5 + 0.5 * sin(seed * 3.2)))
+                let x = Double(size.width) * seed / 11.0
+                let buildingHeight = Double(size.height) * (0.12 + 0.25 * (0.5 + 0.5 * sin(seed * 2.4 + 0.7)))
+                let building = Path(CGRect(x: CGFloat(x), y: CGFloat(Double(size.height) - buildingHeight),
+                                           width: CGFloat(buildingWidth), height: CGFloat(buildingHeight)))
+                context.fill(building, with: .color(Color(red: 0.045, green: 0.065, blue: 0.095).opacity(0.8)))
+            }
+
+            for i in 0..<96 {
+                let seed = Double(i)
+                let speed = 0.27 + seed.truncatingRemainder(dividingBy: 5.0) * 0.035
+                let vertical = (t * speed + seed * 0.319).truncatingRemainder(dividingBy: 1.0)
+                let horizontal = (seed * 0.754 + vertical * 0.045).truncatingRemainder(dividingBy: 1.0)
+                let x = horizontal * Double(size.width)
+                let y = vertical * Double(size.height)
+                let length = 7.0 + seed.truncatingRemainder(dividingBy: 10.0)
+                var streak = Path()
+                streak.move(to: CGPoint(x: CGFloat(x), y: CGFloat(y)))
+                streak.addLine(to: CGPoint(x: CGFloat(x - length * 0.35), y: CGFloat(y + length)))
+                context.stroke(streak, with: .color(Color(red: 0.55, green: 0.68, blue: 0.78).opacity(0.24)),
+                               lineWidth: 0.8)
+            }
+        }
+        .frame(width: w, height: h)
     }
 
     // 照片背景：轮播 + 缓慢推近 + 末段交叉淡化（Art 1「自定义照片背景」）

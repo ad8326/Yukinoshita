@@ -16,7 +16,7 @@
 | --- | --- |
 | `1` – `8` | 直接切换到对应动画模式 |
 | `←` / `→` 或 `M` | 上/下一个模式循环切换 |
-| `B` | 循环切换背景（艺术/冥想/纯享/照片/专辑/静态） |
+| `B` | 循环切换背景（艺术/冥想/纯享/照片/专辑/静态/草原/海浪/飘雪/雨幕） |
 | `Esc` 或 `Q` | 退出屏保 |
 | 其他任意键 / 鼠标点击 / 滚动 | 退出屏保 |
 
@@ -33,8 +33,12 @@
 | 4 | 照片 | `~/Pictures/ArtBackgrounds` 内照片轮播（14 秒一张，缓慢推近 + 交叉淡化） |
 | 5 | 专辑 | 实时专辑封面（助手经 iTunes API 抓取）重度模糊压暗后做氛围衬底 + 唱片同心圆纹理 |
 | 6 | 静态 | 固定深色渐变，无任何动画 |
+| 7 | 草原微风 | 草坡与草叶随风摆动，点缀微光萤火 |
+| 8 | 潮汐海浪 | 多层海浪缓慢起伏，波光在海面漂移 |
+| 9 | 冬夜飘雪 | 深色远山剪影与缓缓飘落的雪粒 |
+| 10 | 雨幕 | 低饱和城市剪影与斜落细雨 |
 
-背景一律低透明度衬在歌词后才（透明屏特性：不抢歌词）。照片背景把图片放进
+背景一律低透明度衬在歌词后（透明屏特性：不抢歌词）。照片背景把图片放进
 `~/Pictures/ArtBackgrounds/`（jpg/png/heic）即可自动轮播；目录为空时自动退回艺术背景。
 
 ## 动画模式（对齐 Art 1 的官方效果体系）
@@ -82,7 +86,7 @@
 - `NowPlayingWatcher`：MediaRemote 私有框架轮询 + 1.5s 超时降级到 JSON 文件旁路
 - `LyricsStore.parse`：多时间戳 LRC 解析、元信息过滤、按时间二分定位当前行
 - `ModeController`：8 种显示模式，`@Published` 驱动 SwiftUI 重绘，持久化到 UserDefaults
-- `BackgroundController`：6 种背景，`B` 键循环；背景用 `.background()` 附加，不参与面板布局
+- `BackgroundController`：10 种背景，`B` 键循环；背景用 `.background()` 附加，不参与面板布局
 - 专辑封面：MediaRemote 无 artwork 接口，改由助手走 iTunes Search API 抓 1200×1200 图落盘
   （`artwork.jpg` + `artwork.json` 记录歌名与时间戳，歌名匹配才采纳，防串封面）
 - `ProcessInfo.beginActivity(.idleDisplaySleepDisabled)`：防休眠断言，token 持有到退出
