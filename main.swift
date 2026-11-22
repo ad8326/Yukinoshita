@@ -630,6 +630,17 @@ struct ArtSpeakerView: View {
             .transition(.opacity)
             .animation(.easeInOut(duration: 1.0), value: bgCtl.kind)
             .animation(.easeInOut(duration: 1.4), value: paletteIndex)
+            RadialGradient(
+                colors: [.clear, Color.black.opacity(0.20), Color.black.opacity(0.58)],
+                center: .center,
+                startRadius: min(w, h) * 0.18,
+                endRadius: max(w, h) * 0.72
+            )
+            LinearGradient(
+                colors: [Color.black.opacity(0.18), .clear, Color.black.opacity(0.24)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 
@@ -1044,27 +1055,27 @@ struct ArtSpeakerView: View {
     private func glassPanel(w: CGFloat, h: CGFloat) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.black.opacity(0.10))
+                .fill(Color.black.opacity(0.16))
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [.white.opacity(0.055), .clear, .black.opacity(0.10)],
+                        colors: [.white.opacity(0.035), .clear, .black.opacity(0.16)],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
-                        colors: [.white.opacity(0.36), .white.opacity(0.10), .white.opacity(0.20)],
+                        colors: [.white.opacity(0.22), .white.opacity(0.055), .white.opacity(0.12)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     ),
                     lineWidth: 1
                 )
             RoundedRectangle(cornerRadius: 27, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.055), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.035), lineWidth: 1)
                 .padding(3)
         }
-        .shadow(color: .black.opacity(0.32), radius: 24)
+        .shadow(color: .black.opacity(0.42), radius: 30)
     }
 
     // 歌词来源：本地/已抓取的 LRC 按当前模式渲染，否则显示歌名卡片或获取中
@@ -1093,11 +1104,18 @@ struct ArtSpeakerView: View {
                                t: Double, accent: Color,
                                @ViewBuilder middle: () -> some View) -> some View {
         VStack(alignment: .center, spacing: 0) {
-            Text((watcher.artist ?? "") + " — " + (watcher.title ?? ""))
-                .font(.system(size: w * 0.026, weight: .regular))
-                .foregroundColor(.white.opacity(0.45))
-                .padding(.bottom, h * 0.05)
+            Text(watcher.title ?? "")
+                .font(.system(size: w * 0.027, weight: .regular, design: .serif))
+                .foregroundColor(Color(red: 0.91, green: 0.89, blue: 0.84).opacity(0.82))
                 .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            Text(watcher.artist ?? "")
+                .font(.system(size: w * 0.014, weight: .regular))
+                .tracking(1.8)
+                .foregroundColor(.white.opacity(0.36))
+                .lineLimit(1)
+                .padding(.top, h * 0.012)
+                .padding(.bottom, h * 0.045)
             middle()
                 .frame(width: w, height: h * 0.39)
                 .clipped()
@@ -1112,14 +1130,35 @@ struct ArtSpeakerView: View {
     private func progressBar(w: CGFloat, h: CGFloat, accent: Color) -> some View {
         GeometryReader { g in
             let p = watcher.duration > 0 ? min(watcher.displayElapsed / watcher.duration, 1) : 0
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.12))
-                Capsule().fill(accent.opacity(0.8))
+            VStack(spacing: h * 0.012) {
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.12))
+                    Capsule().fill(
+                        LinearGradient(
+                            colors: [accent.opacity(0.68), Color(red: 0.88, green: 0.82, blue: 0.68).opacity(0.92)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
                     .frame(width: g.size.width * p)
+                }
+                .frame(height: 2)
+                HStack {
+                    Text(timeLabel(watcher.displayElapsed))
+                    Spacer()
+                    Text(timeLabel(watcher.duration))
+                }
+                .font(.system(size: 9, weight: .regular, design: .monospaced))
+                .foregroundColor(.white.opacity(0.32))
             }
         }
-        .frame(height: 3)
+        .frame(height: 2 + h * 0.03)
         .padding(.horizontal, w * 0.10)
+    }
+
+    private func timeLabel(_ time: Double) -> String {
+        let seconds = max(Int(time), 0)
+        return String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 
     // MARK: 模式 1 悬浮流动（默认）：三行窗口 + 水波漂移
@@ -1133,10 +1172,13 @@ struct ArtSpeakerView: View {
                     let d = i - idx
                     if abs(d) <= 2 {
                         Text(line.text)
-                            .font(.system(size: (d == 0 ? w * 0.042 : w * 0.036),
-                                          weight: d == 0 ? .medium : .light))
-                            .foregroundColor(.white.opacity(d == 0 ? 0.96 : 0.30))
-                            .shadow(color: d == 0 ? accent.opacity(0.85) : .clear, radius: 14)
+                            .font(.system(size: (d == 0 ? w * 0.042 : w * 0.034),
+                                          weight: d == 0 ? .regular : .light,
+                                          design: .serif))
+                            .foregroundColor(d == 0
+                                ? Color(red: 0.96, green: 0.94, blue: 0.88)
+                                : .white.opacity(0.24))
+                            .shadow(color: d == 0 ? accent.opacity(0.38) : .clear, radius: 18)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                             .frame(width: w * 0.86, height: lineHeight, alignment: .center)
@@ -1439,35 +1481,37 @@ struct ArtSpeakerView: View {
         let bgOpacity = sinceBgSwitch < 2.5 ? 0.85 : 0.24
         return VStack(spacing: 0) {
             HStack(alignment: .center) {
-                Text("ART MASTER")
-                    .font(.system(size: 10, weight: .semibold))
-                    .tracking(5)
-                    .foregroundColor(.white.opacity(0.68))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("YUKINOSHITA")
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(4.2)
+                        .foregroundColor(.white.opacity(0.76))
+                    Text("雪之下  ·  LISTENING ROOM")
+                        .font(.system(size: 8, weight: .regular))
+                        .tracking(1.4)
+                        .foregroundColor(.white.opacity(0.32))
+                }
                 Spacer()
                 HStack(spacing: 7) {
                     Circle()
                         .fill(hasMusic ? Color(red: 0.45, green: 0.88, blue: 0.76) : .white.opacity(0.35))
-                        .frame(width: 5, height: 5)
+                        .frame(width: 4, height: 4)
                     Text(hasMusic ? "NOW PLAYING" : "STANDBY")
                         .font(.system(size: 9, weight: .medium))
-                        .tracking(1.6)
-                        .foregroundColor(.white.opacity(0.42))
+                        .tracking(1.8)
+                        .foregroundColor(.white.opacity(0.48))
                 }
             }
-            .padding(.top, h * 0.035)
+            .padding(.top, h * 0.03)
 
             Rectangle()
-                .fill(Color.white.opacity(0.10))
+                .fill(Color.white.opacity(0.085))
                 .frame(height: 1)
                 .padding(.top, h * 0.018)
 
             Spacer(minLength: 0)
 
             HStack(spacing: 12) {
-                Text("ART·1")
-                    .font(.system(size: 9, weight: .medium))
-                    .tracking(3)
-                    .foregroundColor(.white.opacity(0.28))
                 Text("\(modeCtl.mode.rawValue + 1) · \(modeCtl.mode.name)")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(modeOpacity))
@@ -1477,13 +1521,10 @@ struct ArtSpeakerView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.white.opacity(bgOpacity))
                 Spacer(minLength: 0)
-                HStack(spacing: 5) {
-                    ForEach(0..<5, id: \.self) { _ in
-                        Capsule()
-                            .fill(Color.white.opacity(0.20))
-                            .frame(width: 12, height: 2)
-                    }
-                }
+                Text("M  MODE     B  SCENE")
+                    .font(.system(size: 8, weight: .regular, design: .monospaced))
+                    .tracking(0.7)
+                    .foregroundColor(.white.opacity(0.24))
             }
             .padding(.bottom, h * 0.035)
         }
